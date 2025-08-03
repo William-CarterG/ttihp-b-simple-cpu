@@ -165,37 +165,38 @@ module main(
     end
     
     // ========== LED Output Control ==========
-    // LED output based on display mode
-    reg [3:0] led_output;
+    // LEDs always show Program Counter (PC) for easy debugging
+    // LED mapping is RIGHT TO LEFT: LED4 is rightmost (LSB), LED1 is leftmost (MSB)
+    // So binary 0001 (decimal 1) would light up just LED4 (rightmost)
+    // Binary 1000 (decimal 8) would light up just LED1 (leftmost)
+    assign LED1 = pc_out_bus[3]; // Leftmost LED (MSB of PC)
+    assign LED2 = pc_out_bus[2];
+    assign LED3 = pc_out_bus[1];
+    assign LED4 = pc_out_bus[0]; // Rightmost LED (LSB of PC)
+    
+    // ========== 7-Segment Display Value Selection ==========
+    // 7-segment display shows value based on SW3 display mode
+    reg [3:0] display_value;
     
     always @(*) begin
         case (display_mode)
             0: begin  // Show PC lower bits
-                led_output = pc_out_bus[3:0];
+                display_value = pc_out_bus[3:0];
             end
             1: begin  // Show Register A lower bits
-                led_output = regA_out_bus[3:0];
+                display_value = regA_out_bus[3:0];
             end
             2: begin  // Show Register B lower bits
-                led_output = regB_out_bus[3:0];
+                display_value = regB_out_bus[3:0];
             end
             3: begin  // Show ALU result lower bits
-                led_output = alu_out_bus[3:0];
+                display_value = alu_out_bus[3:0];
             end
             default: begin
-                led_output = pc_out_bus[3:0];
+                display_value = pc_out_bus[3:0];
             end
         endcase
     end
-    
-    // Connect to physical LEDs
-    // LED mapping is RIGHT TO LEFT: LED4 is rightmost (LSB), LED1 is leftmost (MSB)
-    // So binary 0001 (decimal 1) would light up just LED4 (rightmost)
-    // Binary 1000 (decimal 8) would light up just LED1 (leftmost)
-    assign LED1 = led_output[3]; // Leftmost LED (MSB)
-    assign LED2 = led_output[2];
-    assign LED3 = led_output[1];
-    assign LED4 = led_output[0]; // Rightmost LED (LSB)
     
     // ========== 7-Segment Display Control ==========
     // Convert 4-bit value (0-15) to two-digit decimal display (00-15)
@@ -206,12 +207,12 @@ module main(
     reg [3:0] ones_digit;
     
     always @(*) begin
-        if (led_output >= 10) begin
+        if (display_value >= 10) begin
             tens_digit = 1;  // Show "1" in tens place for 10-15
-            ones_digit = led_output - 10;  // Show remainder in ones place
+            ones_digit = display_value - 10;  // Show remainder in ones place
         end else begin
             tens_digit = 0;  // Show "0" in tens place for 0-9
-            ones_digit = led_output;  // Show value in ones place
+            ones_digit = display_value;  // Show value in ones place
         end
     end
     
@@ -394,7 +395,7 @@ module instruction_memory(address, out);
     // Hardcoded instruction memory
     always @(address) begin
         case(address)
-            // Visual countdown program: ALU result goes from 15 down to 1
+            // Simple Loop Program: Countdown from 15 to 1 using JMP
             // Using CORRECT opcodes according to CPU specification
             // PC | Instruction                | RegA after | RegB after | ALU Result | Notes
             // ---+---------------------------+------------+------------+------------+------------------------
@@ -402,21 +403,9 @@ module instruction_memory(address, out);
             8'd1: out = 15'b000001100001111;  // 00000000   | 00001111   | 00000000   | MOV B,Lit (Load 15 into RegB)
             8'd2: out = 15'b000000000000000;  // 00001111   | 00001111   | 00001111   | MOV A,B (Move RegB to RegA)
             8'd3: out = 15'b000001100000001;  // 00001111   | 00000001   | 00001111   | MOV B,Lit (Load 1 into RegB)
-            8'd4: out = 15'b000100000000000;  // 00001110   | 00000001   | 00001110   | SUB A,B (RegA-RegB->RegA: 15-1=14)
-            8'd5: out = 15'b000100000000000;  // 00001101   | 00000001   | 00001101   | SUB A,B (RegA-RegB->RegA: 14-1=13)
-            8'd6: out = 15'b000100000000000;  // 00001100   | 00000001   | 00001100   | SUB A,B (RegA-RegB->RegA: 13-1=12)
-            8'd7: out = 15'b000100000000000;  // 00001011   | 00000001   | 00001011   | SUB A,B (RegA-RegB->RegA: 12-1=11)
-            8'd8: out = 15'b000100000000000;  // 00001010   | 00000001   | 00001010   | SUB A,B (RegA-RegB->RegA: 11-1=10)
-            8'd9: out = 15'b000100000000000;  // 00001001   | 00000001   | 00001001   | SUB A,B (RegA-RegB->RegA: 10-1=9)
-            8'd10: out = 15'b000100000000000; // 00001000   | 00000001   | 00001000   | SUB A,B (RegA-RegB->RegA: 9-1=8)
-            8'd11: out = 15'b000100000000000; // 00000111   | 00000001   | 00000111   | SUB A,B (RegA-RegB->RegA: 8-1=7)
-            8'd12: out = 15'b000100000000000; // 00000110   | 00000001   | 00000110   | SUB A,B (RegA-RegB->RegA: 7-1=6)
-            8'd13: out = 15'b000100000000000; // 00000101   | 00000001   | 00000101   | SUB A,B (RegA-RegB->RegA: 6-1=5)
-            8'd14: out = 15'b000100000000000; // 00000100   | 00000001   | 00000100   | SUB A,B (RegA-RegB->RegA: 5-1=4)
-            8'd15: out = 15'b000100000000000; // 00000011   | 00000001   | 00000011   | SUB A,B (RegA-RegB->RegA: 4-1=3)
-            8'd16: out = 15'b000100000000000; // 00000010   | 00000001   | 00000010   | SUB A,B (RegA-RegB->RegA: 3-1=2)
-            8'd17: out = 15'b000100000000000; // 00000001   | 00000001   | 00000001   | SUB A,B (RegA-RegB->RegA: 2-1=1)
-            8'd18: out = 15'b101001100000000; // 00000001   | 00000001   | 00000001   | JMP Dir (Jump to address 0)
+            // LOOP: Subtract 1 from RegA repeatedly
+            8'd4: out = 15'b000100000000000;  // 00001110   | 00000001   | 00001110   | SUB A,B (RegA=RegA-1)
+            8'd5: out = 15'b101001100000100;  // Jump back to address 4 (continue loop)
             default: out = 15'b000000000000000; // NOP for undefined addresses
         endcase
     end
