@@ -291,8 +291,8 @@ module main(
     register regA(
         .clk(cpu_clock),
         .rst(sw1_debounced),  // Now using debounced reset
-        .data(alu_out_bus),
-        .load(cu_out_bus[8]),
+        .data(alu_out_bus),  // RegA gets data from ALU output
+        .load(cu_out_bus[8]),  // RegA load from control unit bit [8] - matches original design
         .out(regA_out_bus)
     );
     
@@ -300,8 +300,8 @@ module main(
     register regB(
         .clk(cpu_clock),
         .rst(sw1_debounced),  // Now using debounced reset
-        .data(alu_out_bus),
-        .load(cu_out_bus[7]),
+        .data(alu_out_bus),  // RegB gets data from ALU output - matches original design
+        .load(cu_out_bus[7]),  // RegB load from control unit bit [7] - matches original design
         .out(regB_out_bus)
     );
     
@@ -311,7 +311,7 @@ module main(
         .e1(8'b00000001),
         .e2(8'b00000000),
         .e3(regB_out_bus),
-        .c(cu_out_bus[6:5]),
+        .c(cu_out_bus[6:5]),  // MUX A control from bits [6:5] - matches original design
         .out(muxA_out_bus)
     );
     
@@ -321,7 +321,7 @@ module main(
         .e1(dm_out_bus),
         .e2(im_out_bus[7:0]),
         .e3(8'b00000000),
-        .c(cu_out_bus[4:3]),
+        .c(cu_out_bus[4:3]),  // MUX B control from bits [4:3] - matches original design
         .out(muxB_out_bus)
     );
     
@@ -394,27 +394,173 @@ module instruction_memory(address, out);
     // Hardcoded instruction memory
     always @(address) begin
         case(address)
-            // Example program: Simple counter and arithmetic
-            // PC | Instruction                | RegA after | RegB after | Notes
-            // ---+---------------------------+------------+------------+------------------------
-            8'd0: out = 15'b000000000000000;  // 00000000   | 00000000   | NOP - No operation
-            8'd1: out = 15'b000010100000001;  // 00000000   | 00000001   | Load 1 into RegB
-            8'd2: out = 15'b000010000000000;  // 00000001   | 00000001   | Move RegB to RegA
-            8'd3: out = 15'b000000000000001;  // 00000010   | 00000001   | Add RegA + RegB -> RegA (1+1=2)
-            8'd4: out = 15'b000010100000010;  // 00000010   | 00000010   | Load 2 into RegB
-            8'd5: out = 15'b000000000000001;  // 00000100   | 00000010   | Add RegA + RegB -> RegA (2+2=4)
-            8'd6: out = 15'b000110000000000;  // 00000010   | 00000010   | Subtract RegA - RegB -> RegA (4-2=2)
-            8'd7: out = 15'b000010100000011;  // 00000010   | 00000011   | Load 3 into RegB
-            8'd8: out = 15'b001000000000000;  // 00000010   | 00000011   | AND RegA & RegB -> RegA (2&3=2)
-            8'd9: out = 15'b001010000000000;  // 00000011   | 00000011   | OR RegA | RegB -> RegA (2|3=3)
-            8'd10: out = 15'b001100000000000; // 11111100   | 00000011   | NOT RegA -> RegA (~3=252)
-            8'd11: out = 15'b001110000000000; // 11111111   | 00000011   | XOR RegA ^ RegB -> RegA (252^3=255)
-            8'd12: out = 15'b010000000000000; // 11111110   | 00000011   | Shift left RegA (255<<1=254)
-            8'd13: out = 15'b010010000000000; // 01111111   | 00000011   | Shift right RegA (254>>1=127)
-            8'd14: out = 15'b100000000000000; // 01111111   | 00000011   | Jump to address 0 (loop)
+            // Visual countdown program: ALU result goes from 15 down to 1
+            // Using CORRECT opcodes according to CPU specification
+            // PC | Instruction                | RegA after | RegB after | ALU Result | Notes
+            // ---+---------------------------+------------+------------+------------+------------------------
+            8'd0: out = 15'b000000000000000;  // 00000000   | 00000000   | 00000000   | NOP - No operation
+            8'd1: out = 15'b000001100001111;  // 00000000   | 00001111   | 00000000   | MOV B,Lit (Load 15 into RegB)
+            8'd2: out = 15'b000000000000000;  // 00001111   | 00001111   | 00001111   | MOV A,B (Move RegB to RegA)
+            8'd3: out = 15'b000001100000001;  // 00001111   | 00000001   | 00001111   | MOV B,Lit (Load 1 into RegB)
+            8'd4: out = 15'b000100000000000;  // 00001110   | 00000001   | 00001110   | SUB A,B (RegA-RegB->RegA: 15-1=14)
+            8'd5: out = 15'b000100000000000;  // 00001101   | 00000001   | 00001101   | SUB A,B (RegA-RegB->RegA: 14-1=13)
+            8'd6: out = 15'b000100000000000;  // 00001100   | 00000001   | 00001100   | SUB A,B (RegA-RegB->RegA: 13-1=12)
+            8'd7: out = 15'b000100000000000;  // 00001011   | 00000001   | 00001011   | SUB A,B (RegA-RegB->RegA: 12-1=11)
+            8'd8: out = 15'b000100000000000;  // 00001010   | 00000001   | 00001010   | SUB A,B (RegA-RegB->RegA: 11-1=10)
+            8'd9: out = 15'b000100000000000;  // 00001001   | 00000001   | 00001001   | SUB A,B (RegA-RegB->RegA: 10-1=9)
+            8'd10: out = 15'b000100000000000; // 00001000   | 00000001   | 00001000   | SUB A,B (RegA-RegB->RegA: 9-1=8)
+            8'd11: out = 15'b000100000000000; // 00000111   | 00000001   | 00000111   | SUB A,B (RegA-RegB->RegA: 8-1=7)
+            8'd12: out = 15'b000100000000000; // 00000110   | 00000001   | 00000110   | SUB A,B (RegA-RegB->RegA: 7-1=6)
+            8'd13: out = 15'b000100000000000; // 00000101   | 00000001   | 00000101   | SUB A,B (RegA-RegB->RegA: 6-1=5)
+            8'd14: out = 15'b000100000000000; // 00000100   | 00000001   | 00000100   | SUB A,B (RegA-RegB->RegA: 5-1=4)
+            8'd15: out = 15'b000100000000000; // 00000011   | 00000001   | 00000011   | SUB A,B (RegA-RegB->RegA: 4-1=3)
+            8'd16: out = 15'b000100000000000; // 00000010   | 00000001   | 00000010   | SUB A,B (RegA-RegB->RegA: 3-1=2)
+            8'd17: out = 15'b000100000000000; // 00000001   | 00000001   | 00000001   | SUB A,B (RegA-RegB->RegA: 2-1=1)
+            8'd18: out = 15'b101001100000000; // 00000001   | 00000001   | 00000001   | JMP Dir (Jump to address 0)
             default: out = 15'b000000000000000; // NOP for undefined addresses
         endcase
     end
+endmodule
+
+// Control Unit module - decodes instructions and generates control signals
+module control_unit(opcode, zncv, out);
+  input [6:0] opcode;
+  input [3:0] zncv;
+  output [11:0] out;
+  
+  wire [6:0] opcode;
+  wire [3:0] zncv;
+  reg [11:0] out;
+  
+  always @(opcode) begin
+    case(opcode)
+      'b0000000: out = 12'b000101000000;
+      'b0000001: out = 12'b000010011000;
+      'b0000010: out = 12'b000101010000;
+      'b0000011: out = 12'b000011010000;
+      'b0000100: out = 12'b000100000000;
+      'b0000101: out = 12'b000010000000;
+      'b0000110: out = 12'b000100010000;
+      'b0000111: out = 12'b000011110000;
+      'b0001000: out = 12'b000100000001;
+      'b0001001: out = 12'b000010000001;
+      'b0001010: out = 12'b000100010001;
+      'b0001011: out = 12'b000011110001;
+      'b0001100: out = 12'b000100000010;
+      'b0001101: out = 12'b000010000010;
+      'b0001110: out = 12'b000100010010;
+      'b0001111: out = 12'b000011110010;
+      'b0010000: out = 12'b000100000011;
+      'b0010001: out = 12'b000010000011;
+      'b0010010: out = 12'b000100010011;
+      'b0010011: out = 12'b000011110011;
+      'b0010100: out = 12'b000100000100;
+      'b0010101: out = 12'b000101100100;
+      'b0010110: out = 12'b000010000100;
+      'b0010111: out = 12'b000011100100;
+      'b0011000: out = 12'b000100000101;
+      'b0011001: out = 12'b000010000101;
+      'b0011010: out = 12'b000100010101;
+      'b0011011: out = 12'b000011110101;
+      'b0011100: out = 12'b000100000110;
+      'b0011101: out = 12'b000101100110;
+      'b0011110: out = 12'b000010000110;
+      'b0011111: out = 12'b000011100110;
+      'b0100000: out = 12'b000100000111;
+      'b0100001: out = 12'b000101100111;
+      'b0100010: out = 12'b000010000111;
+      'b0100011: out = 12'b000011100111;
+      'b0100100: out = 12'b000010100000;
+      'b0100101: out = 12'b000101001000;
+      'b0100110: out = 12'b000011001000;
+      'b0100111: out = 12'b010000011000;
+      'b0101000: out = 12'b010001000000;
+      'b0101001: out = 12'b001101001000;
+      'b0101010: out = 12'b001011001000;
+      'b0101011: out = 12'b011000011000;
+      'b0101100: out = 12'b000100001000;
+      'b0101101: out = 12'b000011101000;
+      'b0101110: out = 12'b001100001000;
+      'b0101111: out = 12'b010000000000;
+      'b0110000: out = 12'b000100001001;
+      'b0110001: out = 12'b000011101001;
+      'b0110010: out = 12'b001100001001;
+      'b0110011: out = 12'b010000000001;
+      'b0110100: out = 12'b000100001010;
+      'b0110101: out = 12'b000011101010;
+      'b0110110: out = 12'b001100001010;
+      'b0110111: out = 12'b010000000010;
+      'b0111000: out = 12'b000100001011;
+      'b0111001: out = 12'b000011101011;
+      'b0111010: out = 12'b001100001011;
+      'b0111011: out = 12'b010000000011;
+      'b0111100: out = 12'b010000000100;
+      'b0111101: out = 12'b010001100100;
+      'b0111110: out = 12'b011000000100;
+      'b0111111: out = 12'b000100001101;
+      'b1000000: out = 12'b000011101101;
+      'b1000001: out = 12'b001100001101;
+      'b1000010: out = 12'b010000000101;
+      'b1000011: out = 12'b010000000110;
+      'b1000100: out = 12'b010001100110;
+      'b1000101: out = 12'b011000000110;
+      'b1000110: out = 12'b010000000111;
+      'b1000111: out = 12'b010001100111;
+      'b1001000: out = 12'b011000000111;
+      'b1001001: out = 12'b010000101000;
+      'b1001010: out = 12'b011000101000;
+      'b1001011: out = 12'b010001011000;
+      'b1001100: out = 12'b011001011000;
+      'b1001101: out = 12'b000000000001;
+      'b1001110: out = 12'b000000010001;
+      'b1001111: out = 12'b000001110001;
+      'b1010000: out = 12'b000000001001;
+      'b1010001: out = 12'b000001101001;
+      'b1010010: out = 12'b001000001001;
+      'b1010011: out = 12'b100000000000;
+      
+      'b1010100: begin
+        if (zncv[3] == 1) begin //z=1
+          out = 12'b100000000000;
+        end
+      end
+      'b1010101: begin
+        if (zncv[3] == 0) begin //z=0
+          out = 12'b100000000000;
+        end
+      end
+      'b1010110: begin
+        if (zncv[3] == 0 && zncv[2] == 0) begin //z=0 y n=0
+          out = 12'b100000000000;
+      	end
+      end
+      'b1010111: begin
+        if (zncv[2] == 1) begin //n=1
+          out = 12'b100000000000;
+        end
+      end
+      'b1011000: begin
+        if (zncv[2] == 0) begin //n=0
+          out = 12'b100000000000;
+        end
+      end
+      'b1011001: begin
+        if (zncv[3] == 1 || zncv[2] == 1) begin //z=1 o n=1 
+          out = 12'b100000000000;
+        end
+      end
+      'b1011010: begin
+        if (zncv[1] == 1) begin //c=1
+          out = 12'b100000000000;
+        end
+      end
+      'b1011011: begin 
+        if (zncv[0] == 1) begin //v=1
+          out = 12'b100000000000;
+        end
+      end
+    endcase
+  end
 endmodule
 
 // ALU module
@@ -526,62 +672,6 @@ module muxD(e0, e1, c, out);
         case(c)
             1'b0: out = e0;
             1'b1: out = e1;
-        endcase
-    end
-endmodule
-
-// Control Unit module
-module control_unit(opcode, zncv, out);
-    input [6:0] opcode;
-    input [3:0] zncv;
-    output [11:0] out;
-    
-    wire [6:0] opcode;
-    wire [3:0] zncv;
-    reg [11:0] out;
-    
-    always @(*) begin
-        // Default: No operation
-        out = 12'b000000000000;
-        
-        case(opcode)
-            // Basic operations
-            7'b0000000: out = 12'b000000000000; // NOP
-            7'b0000001: out = 12'b000100000000; // Load RegA from ALU
-            7'b0000010: out = 12'b000010000000; // Load RegB from ALU
-            7'b0000011: out = 12'b000110000000; // Load both RegA and RegB from ALU
-            
-            // ALU operations with RegA as destination
-            7'b0000100: out = 12'b000100000000; // ADD: RegA = RegA + RegB
-            7'b0000110: out = 12'b000100000001; // SUB: RegA = RegA - RegB
-            7'b0001000: out = 12'b000100000010; // AND: RegA = RegA & RegB
-            7'b0001010: out = 12'b000100000011; // OR: RegA = RegA | RegB
-            7'b0001100: out = 12'b000100000100; // NOT: RegA = ~RegA
-            7'b0001110: out = 12'b000100000101; // XOR: RegA = RegA ^ RegB
-            7'b0010000: out = 12'b000100000110; // SHL: RegA = RegA << 1
-            7'b0010010: out = 12'b000100000111; // SHR: RegA = RegA >> 1
-            
-            // Memory operations
-            7'b0010100: out = 12'b001000000000; // Store RegA to memory at address from RegB
-            7'b0010110: out = 12'b000100010000; // Load RegA from memory at address from RegB
-            
-            // Jump operations
-            7'b1000000: out = 12'b100000000000; // Unconditional jump
-            7'b1000001: begin // Jump if zero
-                if (zncv[3] == 1) out = 12'b100000000000;
-            end
-            7'b1000010: begin // Jump if not zero
-                if (zncv[3] == 0) out = 12'b100000000000;
-            end
-            7'b1000011: begin // Jump if negative
-                if (zncv[2] == 1) out = 12'b100000000000;
-            end
-            7'b1000100: begin // Jump if carry
-                if (zncv[1] == 1) out = 12'b100000000000;
-            end
-            
-            // Default case
-            default: out = 12'b000000000000;
         endcase
     end
 endmodule
