@@ -23,21 +23,24 @@ set_io -nowarn SW3  54
 set_io -nowarn SW4  52
 
 # ------------ 7 segments -----------------------------------------------------
-set_io -nowarn S1_A  3
-set_io -nowarn S1_B  4
-set_io -nowarn S1_C  93
-set_io -nowarn S1_D  91
-set_io -nowarn S1_E  90
-set_io -nowarn S1_F  1
-set_io -nowarn S1_G  2
+# Upper digit (tens) - Segment1
+set_io -nowarn o_Segment1_A  3
+set_io -nowarn o_Segment1_B  4
+set_io -nowarn o_Segment1_C  93
+set_io -nowarn o_Segment1_D  91
+set_io -nowarn o_Segment1_E  90
+set_io -nowarn o_Segment1_F  1
+set_io -nowarn o_Segment1_G  2
 
-set_io -nowarn S2_A  100
-set_io -nowarn S2_B  99
-set_io -nowarn S2_C  97
-set_io -nowarn S2_D  95
-set_io -nowarn S2_E  94
-set_io -nowarn S2_F  8
-set_io -nowarn S2_G  96
+# Lower digit (ones) - Segment2
+
+set_io -nowarn o_Segment2_A  100
+set_io -nowarn o_Segment2_B  99
+set_io -nowarn o_Segment2_C  97
+set_io -nowarn o_Segment2_D  95
+set_io -nowarn o_Segment2_E  94
+set_io -nowarn o_Segment2_F  8
+set_io -nowarn o_Segment2_G  96
 
 # -------------------------- SYSTEM CLOCK ------------------------------------
 set_io -nowarn CLK 15

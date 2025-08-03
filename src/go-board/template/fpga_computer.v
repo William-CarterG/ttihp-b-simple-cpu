@@ -11,8 +11,32 @@ module main(
     output LED1,   // LED output
     output LED2,   // LED output
     output LED3,   // LED output
-    output LED4    // LED output
+    output LED4,   // LED output
+    // 7-segment display outputs (active LOW)
+    // Upper digit (tens)
+    output o_Segment1_A,
+    output o_Segment1_B,
+    output o_Segment1_C,
+    output o_Segment1_D,
+    output o_Segment1_E,
+    output o_Segment1_F,
+    output o_Segment1_G,
+    // Lower digit (ones)
+    output o_Segment2_A,
+    output o_Segment2_B,
+    output o_Segment2_C,
+    output o_Segment2_D,
+    output o_Segment2_E,
+    output o_Segment2_F,
+    output o_Segment2_G
 );
+
+    // Debounce limit parameter
+`ifdef SIMULATION
+    parameter DEBOUNCE_LIMIT = `DEBOUNCE_LIMIT;
+`else
+    parameter DEBOUNCE_LIMIT = 10000; // Adjust as needed for hardware
+`endif
 
     // ========== Clock Management ==========
     // Slow clock for visible operation
@@ -27,13 +51,82 @@ module main(
         end
     end
     
-    // Manual clock from step button
+    // ========== Button Debouncing ==========
+    // Debounce registers for each button
+    reg [15:0] debounce_counter_sw1 = 0;
+    reg [15:0] debounce_counter_sw2 = 0;
+    reg [15:0] debounce_counter_sw3 = 0;
+    reg [15:0] debounce_counter_sw4 = 0;
+    
+    reg sw1_state = 0;
+    reg sw2_state = 0;
+    reg sw3_state = 0;
+    reg sw4_state = 0;
+    
+    reg sw1_debounced = 0;
+    reg sw2_debounced = 0;
+    reg sw3_debounced = 0;
+    reg sw4_debounced = 0;
+    
+    // Debounce logic for SW1 (Reset)
+    always @(posedge CLK) begin
+        if (SW1 != sw1_state) begin
+            debounce_counter_sw1 <= 0;
+            sw1_state <= SW1;
+        end else if (debounce_counter_sw1 < DEBOUNCE_LIMIT) begin
+            debounce_counter_sw1 <= debounce_counter_sw1 + 1;
+            if (debounce_counter_sw1 == DEBOUNCE_LIMIT - 1) begin
+                sw1_debounced <= sw1_state;
+            end
+        end
+    end
+    
+    // Debounce logic for SW2 (Run/Step)
+    always @(posedge CLK) begin
+        if (SW2 != sw2_state) begin
+            debounce_counter_sw2 <= 0;
+            sw2_state <= SW2;
+        end else if (debounce_counter_sw2 < DEBOUNCE_LIMIT) begin
+            debounce_counter_sw2 <= debounce_counter_sw2 + 1;
+            if (debounce_counter_sw2 == DEBOUNCE_LIMIT - 1) begin
+                sw2_debounced <= sw2_state;
+            end
+        end
+    end
+    
+    // Debounce logic for SW3 (Display mode)
+    always @(posedge CLK) begin
+        if (SW3 != sw3_state) begin
+            debounce_counter_sw3 <= 0;
+            sw3_state <= SW3;
+        end else if (debounce_counter_sw3 < DEBOUNCE_LIMIT) begin
+            debounce_counter_sw3 <= debounce_counter_sw3 + 1;
+            if (debounce_counter_sw3 == DEBOUNCE_LIMIT - 1) begin
+                sw3_debounced <= sw3_state;
+            end
+        end
+    end
+    
+    // Debounce logic for SW4 (Instruction select)
+    always @(posedge CLK) begin
+        if (SW4 != sw4_state) begin
+            debounce_counter_sw4 <= 0;
+            sw4_state <= SW4;
+        end else if (debounce_counter_sw4 < DEBOUNCE_LIMIT) begin
+            debounce_counter_sw4 <= debounce_counter_sw4 + 1;
+            if (debounce_counter_sw4 == DEBOUNCE_LIMIT - 1) begin
+                sw4_debounced <= sw4_state;
+            end
+        end
+    end
+    
+    // Manual clock from step button - now using debounced signal
     reg prev_step = 0;
     reg step_pulse = 0;
     
     always @(posedge CLK) begin
-        prev_step <= SW2;
-        if (!SW2 && prev_step) begin
+        prev_step <= sw2_debounced;
+        if (!sw2_debounced && prev_step) begin
             step_pulse <= 1;
         end else begin
             step_pulse <= 0;
@@ -61,11 +154,11 @@ module main(
     // ========== Display Mode Control ==========
     reg [1:0] display_mode = 0;  // Different display modes
     
-    // Change display mode when SW3 is pressed
+    // Change display mode when SW3 is pressed - now using debounced signal
     reg prev_mode = 0;
     always @(posedge CLK) begin
-        prev_mode <= SW3;
-        if (!SW3 && prev_mode) begin
+        prev_mode <= sw3_debounced;
+        if (!sw3_debounced && prev_mode) begin
             display_mode <= display_mode + 1;
             if (display_mode == 3) display_mode <= 0;
         end
@@ -103,12 +196,79 @@ module main(
     assign LED2 = led_output[2];
     assign LED3 = led_output[1];
     assign LED4 = led_output[0]; // Rightmost LED (LSB)
+    
+    // ========== 7-Segment Display Control ==========
+    // Convert 4-bit value (0-15) to two-digit decimal display (00-15)
+    // Segments are active LOW (0 = ON, 1 = OFF)
+    
+    // Binary to decimal conversion
+    reg [3:0] tens_digit;
+    reg [3:0] ones_digit;
+    
+    always @(*) begin
+        if (led_output >= 10) begin
+            tens_digit = 1;  // Show "1" in tens place for 10-15
+            ones_digit = led_output - 10;  // Show remainder in ones place
+        end else begin
+            tens_digit = 0;  // Show "0" in tens place for 0-9
+            ones_digit = led_output;  // Show value in ones place
+        end
+    end
+    
+    // 7-segment decoder for decimal digits (0-9 only)
+    reg [6:0] tens_pattern;
+    reg [6:0] ones_pattern;
+    
+    // Decoder for tens digit (0 or 1)
+    always @(*) begin
+        case (tens_digit)
+            4'd0: tens_pattern = 7'b0000001; // 0: segments A,B,C,D,E,F on
+            4'd1: tens_pattern = 7'b1001111; // 1: segments B,C on
+            default: tens_pattern = 7'b1111111; // Blank
+        endcase
+    end
+    
+    // Decoder for ones digit (0-9)
+    always @(*) begin
+        case (ones_digit)
+            4'd0: ones_pattern = 7'b0000001; // 0: segments A,B,C,D,E,F on
+            4'd1: ones_pattern = 7'b1001111; // 1: segments B,C on
+            4'd2: ones_pattern = 7'b0010010; // 2: segments A,B,G,E,D on
+            4'd3: ones_pattern = 7'b0000110; // 3: segments A,B,G,C,D on
+            4'd4: ones_pattern = 7'b1001100; // 4: segments F,G,B,C on
+            4'd5: ones_pattern = 7'b0100100; // 5: segments A,F,G,C,D on
+            4'd6: ones_pattern = 7'b0100000; // 6: segments A,F,G,E,D,C on
+            4'd7: ones_pattern = 7'b0001111; // 7: segments A,B,C on
+            4'd8: ones_pattern = 7'b0000000; // 8: all segments on
+            4'd9: ones_pattern = 7'b0000100; // 9: segments A,B,C,D,F,G on
+            default: ones_pattern = 7'b1111111; // Blank
+        endcase
+    end
+    
+    // Connect to 7-segment display outputs
+    // Upper digit (tens)
+    assign o_Segment1_A = tens_pattern[6];
+    assign o_Segment1_B = tens_pattern[5];
+    assign o_Segment1_C = tens_pattern[4];
+    assign o_Segment1_D = tens_pattern[3];
+    assign o_Segment1_E = tens_pattern[2];
+    assign o_Segment1_F = tens_pattern[1];
+    assign o_Segment1_G = tens_pattern[0];
+    
+    // Lower digit (ones)
+    assign o_Segment2_A = ones_pattern[6];
+    assign o_Segment2_B = ones_pattern[5];
+    assign o_Segment2_C = ones_pattern[4];
+    assign o_Segment2_D = ones_pattern[3];
+    assign o_Segment2_E = ones_pattern[2];
+    assign o_Segment2_F = ones_pattern[1];
+    assign o_Segment2_G = ones_pattern[0];
 
     // ========== Computer Components ==========
     // Program Counter
     pc PC(
         .clk(cpu_clock),
-        .rst(SW1),
+        .rst(sw1_debounced),  // Now using debounced reset
         .l(cu_out_bus[11]),
         .im(im_out_bus[7:0]),
         .pc(pc_out_bus)
@@ -130,7 +290,7 @@ module main(
     // Register A
     register regA(
         .clk(cpu_clock),
-        .rst(SW1),
+        .rst(sw1_debounced),  // Now using debounced reset
         .data(alu_out_bus),
         .load(cu_out_bus[8]),
         .out(regA_out_bus)
@@ -139,7 +299,7 @@ module main(
     // Register B
     register regB(
         .clk(cpu_clock),
-        .rst(SW1),
+        .rst(sw1_debounced),  // Now using debounced reset
         .data(alu_out_bus),
         .load(cu_out_bus[7]),
         .out(regB_out_bus)
@@ -185,7 +345,7 @@ module main(
     // Data Memory
     data_memory DM(
         .clk(cpu_clock), 
-        .rst(SW1),
+        .rst(sw1_debounced),  // Now using debounced reset
         .data_in(alu_out_bus), 
         .address(muxD_out_bus), 
         .w(cu_out_bus[10]),
@@ -195,7 +355,7 @@ module main(
     // Status Register
     status Status(
         .clk(cpu_clock),
-        .rst(SW1),
+        .rst(sw1_debounced),  // Now using debounced reset
         .zncv(alu_zncv_out_bus),
         .out(status_out_bus)
     );
